@@ -19,7 +19,40 @@ async def main():
     # 7. Create DialClient, endpoint is `https://ai-proxy.lab.epam.com`
     # 8. Create array with Messages and add there System message with simple instructions for LLM that it should help to handle user request
     # 9. Create simple console chat (as we done in previous tasks)
-    raise NotImplementedError()
+    tools = []
+    tool_clients = {}
+    ums_mcp_client = await MCPClient.create(mcp_server_url="http://localhost:8006/mcp")
+    ums_tools = await ums_mcp_client.get_tools()
+    for tool in ums_tools:
+        tools.append(tool)
+        tool_clients[tool["function"]["name"]] = ums_mcp_client
+
+    remote_mcp_client = await CustomMCPClient.create(mcp_server_url="https://remote.mcpservers.org/fetch/mcp")
+    remote_tools = await remote_mcp_client.get_tools()
+    for tool in remote_tools:
+        tools.append(tool)
+        tool_clients[tool["function"]["name"]] = remote_mcp_client
+
+    dial_client = DialClient(endpoint="https://ai-proxy.lab.epam.com", api_key=os.getenv("DIAL_API_KEY"), tools=tools, tool_name_client_map=tool_clients)
+
+    messages = [
+        Message(
+            role=Role.SYSTEM,
+            content="You are an advanced AI agent. Your goal is to assist user with his questions."
+        )
+    ]
+
+    while True:
+        user_input = input("User: ")
+        if user_input in {"exit", "quit"}:
+            # delete mcp sessions before exit
+            
+            break
+
+        messages.append(Message(role=Role.USER, content=user_input))
+
+        response_message = await dial_client.get_completion(messages)
+        messages.append(response_message)
 
 if __name__ == "__main__":
     asyncio.run(main())
